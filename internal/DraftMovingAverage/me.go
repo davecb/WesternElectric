@@ -1,4 +1,4 @@
-package movingAverage
+package DraftMovingAverage
 
 /*
  * Moving Average - the thing to compare outliers against

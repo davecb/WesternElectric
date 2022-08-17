@@ -1,4 +1,4 @@
-package movingAverage
+package DraftMovingAverage
 
 import "fmt"
 
