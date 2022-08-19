@@ -6,7 +6,7 @@ import (
 
 func ExampleMovingAverage() {
 
-	add := CreateMovingAverage(5)
+	add := New(5)
 	a, _ := add(1)
 	fmt.Println("(1                  ) / 5 =", a)
 	a, _ = add(2)

@@ -28,10 +28,10 @@ import (
 *
 */
 
-// CreateMovingAverage takes a number of sample to consider and generates a
+// New takes a number of sample to consider and generates a
 // function, conventionally called "add", that computes a moving average
 // and standard deviation as each sample is added to the sample set.
-func CreateMovingAverage(nSamples int) func(s float64) (float64, float64) {
+func New(nSamples int) func(s float64) (float64, float64) {
 	var Mean, S float64 // S is the accumulator for the variance and SD
 	var i, k int
 
