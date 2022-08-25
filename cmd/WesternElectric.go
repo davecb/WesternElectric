@@ -125,11 +125,94 @@ func threeSigma(datum, average, sd float64) string {
 	return ""
 }
 
+var twosies, threesies []State
+
+func init() {
+	twosies = make([]State, 2)
+	threesies = make([]State, 3)
+}
+
 // twoSigma detects 2 out of 3 points at +/- 2 sigma
 func twoSigma(datum, average, sd float64) string {
+
+	// record its state
+	switch {
+	case datum > average+(2*sd):
+		twosies[0] = State_Above
+	case datum < average-(2*sd):
+		twosies[0] = State_Below
+	default:
+		twosies[0] = State_NA
+	}
+	if twoOf(twosies) {
+		twosies = shifty(twosies)
+		if datum > 0 {
+			return " 2σ"
+		} else {
+			return " -2σ"
+		}
+	}
+	twosies = shifty(twosies)
 	return ""
+}
+
+func twoOf(twosies []State) bool {
+	return nOf(twosies, 2)
+}
+
+func nOf(window []State, matches int) bool {
+	var found int
+	var target = window[0]
+
+	for i := 1; i < len(window); i++ {
+		if window[i] == target {
+			found++
+		}
+	}
+	if found >= matches {
+		return true
+	}
+	return false
+}
+
+// shifty moves everything to the right, zero-filling
+func shifty(window []State) []State {
+	for i := len(window) - 1; i > 0; i-- {
+		window[i] = window[i-1]
+	}
+	window[0] = State_NA
+	return window
 }
 
 // oneSigma detects  4/5 at 1 +/- sigma
 
 // noSigma detects  9/9 on the same side of 0
+
+/*
+ * State is the state of a previous sample
+ * 		NA means it was neither above nor below the +/- cutoff
+ * 		Above means it was above the cutoff, and so on
+ */
+type State int32
+
+const (
+	State_NA    State = 0
+	State_Above State = 1
+	State_Below State = 2
+)
+
+var State_name = map[int32]string{
+	0: "NA",
+	1: "Above",
+	2: "Below",
+}
+
+var State_value = map[string]int32{
+	"NA":    0,
+	"Above": 1,
+	"Below": 2,
+}
+
+func (x State) String() string {
+	return State_name[int32(x)]
+}

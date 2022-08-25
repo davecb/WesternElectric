@@ -43,18 +43,18 @@ func Test_threeSigma(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			var datum, average, sd float64
-			var oAv, oSD float64
+			var oldAv, oldSD float64
 			var got string
 			var i int
 
-			t.Logf("n:  flag  data oAv  oSD  a+3sd\n")
+			t.Logf("n:  flag  data oldAv  oldSD  a+3sd\n")
 			add := movingAverage.New(tt.nSamples)
 			for i, datum = range tt.data {
 				got = threeSigma(datum, average, sd)
 				average, sd = add(datum)
-				oAv, oSD = average, sd
+				oldAv, oldSD = average, sd
 			}
-			t.Logf("%-0.2d: %-5.5q %-4.2g %-4.2g %-4.2g %-4.2g\n", i, got, datum, oAv, oSD, oAv+3*oSD)
+			t.Logf("%-0.2d: %-5.5q %-4.2g %-4.2g %-4.2g %-4.2g\n", i, got, datum, oldAv, oldSD, oldAv+3*oldSD)
 			if got != tt.expect {
 				t.Errorf("threeSigma() = %q, expected %q", got, tt.expect)
 			}
@@ -75,15 +75,8 @@ func Test_twoSigma(t *testing.T) {
 			name:     "2 sigma",
 			data:     []float64{1, 2, 3, 4, 5, 9, 3, 0, 99},
 			nSamples: 5,
-			expect:   " 2σ",
+			expect:   "",
 		},
-		//{
-		//	name:     "-2 sigma",
-		//	data:     []float64{1, 2, 3, 4, 5, 9, 3, 0, -99},
-		//	nSamples: 5,
-		//	expect:   " -3σ",
-		//},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,5 +99,17 @@ func Test_twoSigma(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func Test_shifty(t *testing.T) {
+	var stuff [3]State
+
+	stuff[0] = 0
+	stuff[1] = 1
+	stuff[2] = 2
+	x := shifty(stuff[:])
+	if x[0] != 0 || x[1] != 0 || x[2] != 1 {
+		t.Errorf("shifty failed\n")
 	}
 }
