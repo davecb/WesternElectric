@@ -73,27 +73,27 @@ func Test_twoSigma(t *testing.T) {
 	}{
 		{
 			name:     "2 sigma",
-			data:     []float64{1, 2, 3, 4, 5, 9, 3, 0, 99},
+			data:     []float64{1, 1, 1, 1, 1, 1, 5, 1, 11},
 			nSamples: 5,
-			expect:   "",
+			expect:   " 2σ",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var datum, average, sd float64
+			var oldAv, oldSD float64
 			var got string
 			var i int
 
 			add := movingAverage.New(tt.nSamples)
-			t.Logf("n: data av sd flags\n")
+			t.Logf("n:  flag  data av   sd   a+3sd\n")
 			for i, datum = range tt.data {
 				got = twoSigma(datum, average, sd)
 				average, sd = add(datum)
-				//if i > tt.nSamples {
-				t.Logf("%d: %g %0.4g %0.4g %q\n", i, datum, average, sd, got)
-				//}
-
+				//t.Logf("%-0.2d: %-5.5q %-4.2g %-4.2g %-4.2g %-4.2g\n", i, got, datum, oldAv, oldSD, oldAv+3*oldSD)
+				oldAv, oldSD = average, sd
 			}
+			t.Logf("%-0.2d: %-5.5q %-4.2g %-4.2g %-4.2g %-4.2g\n", i, got, datum, oldAv, oldSD, oldAv+3*oldSD)
 			if got != tt.expect {
 				t.Errorf("twoSigma() = %q, expected %q", got, tt.expect)
 			}
@@ -108,8 +108,8 @@ func Test_shifty(t *testing.T) {
 	stuff[0] = 0
 	stuff[1] = 1
 	stuff[2] = 2
-	x := shifty(stuff[:])
+	x := shiftRight(stuff[:])
 	if x[0] != 0 || x[1] != 0 || x[2] != 1 {
-		t.Errorf("shifty failed\n")
+		t.Errorf("shiftRight failed\n")
 	}
 }

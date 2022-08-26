@@ -125,13 +125,6 @@ func threeSigma(datum, average, sd float64) string {
 	return ""
 }
 
-var twosies, threesies []State
-
-func init() {
-	twosies = make([]State, 2)
-	threesies = make([]State, 3)
-}
-
 // twoSigma detects 2 out of 3 points at +/- 2 sigma
 func twoSigma(datum, average, sd float64) string {
 
@@ -144,27 +137,50 @@ func twoSigma(datum, average, sd float64) string {
 	default:
 		twosies[0] = State_NA
 	}
+	// see if we have two of three
 	if twoOf(twosies) {
-		twosies = shifty(twosies)
+		twosies = shiftRight(twosies)
 		if datum > 0 {
 			return " 2σ"
 		} else {
 			return " -2σ"
 		}
 	}
-	twosies = shifty(twosies)
+	twosies = shiftRight(twosies)
 	return ""
 }
 
+// oneSigma detects  4/5 at 1 +/- sigma
+
+// noSigma detects  9/9 on the same side of 0
+
+/*
+ * infrastructure for the tests
+ */
+var twosies, fivesies []State
+
+func init() {
+	// state vectors for twp of three, four of five
+	twosies = make([]State, 3)
+	fivesies = make([]State, 5)
+}
+
+// twoOf reports true if two states match
 func twoOf(twosies []State) bool {
 	return nOf(twosies, 2)
 }
 
+// nOf reports true if N states match
 func nOf(window []State, matches int) bool {
 	var found int
 	var target = window[0]
 
-	for i := 1; i < len(window); i++ {
+	if target == State_NA {
+		// we only care about above or belows matching
+		return false
+	}
+
+	for i := 0; i < len(window); i++ {
 		if window[i] == target {
 			found++
 		}
@@ -175,18 +191,14 @@ func nOf(window []State, matches int) bool {
 	return false
 }
 
-// shifty moves everything to the right, zero-filling
-func shifty(window []State) []State {
+// shiftRight moves everything to the right, zero-filling
+func shiftRight(window []State) []State {
 	for i := len(window) - 1; i > 0; i-- {
 		window[i] = window[i-1]
 	}
 	window[0] = State_NA
 	return window
 }
-
-// oneSigma detects  4/5 at 1 +/- sigma
-
-// noSigma detects  9/9 on the same side of 0
 
 /*
  * State is the state of a previous sample
