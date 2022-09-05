@@ -35,17 +35,21 @@ func main() {
 		fmt.Fprint(os.Stderr, "You must supply an input file, or '-' and a stream on stdin\n\n") //nolint
 		usage()
 	}
+	if nSamples < 2 {
+		fmt.Fprintf(os.Stderr, "You must specify a number of samples > 1 for the moving average, observed %d\n\n", nSamples) //nolint
+		usage()
+	}
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime) // show file:line in logs
 
 	filename := flag.Arg(0)
 
-	rc := westernElectric(filename, nSamples)
+	rc := WesternElectric(filename, nSamples)
 	os.Exit(rc)
 }
 
-// westernElectric applies the WE rules to a stream of data, using a
+// WesternElectric applies the WE rules to a stream of data, using a
 // moving average of nSamples as the thing to compare against.
-func westernElectric(filename string, nSamples int) int {
+func WesternElectric(filename string, nSamples int) int {
 	var fp *os.File
 	var err error
 
@@ -115,7 +119,7 @@ func worker(fp *os.File, nSamples int) int {
 
 		//log.Printf("at time %q, got %g, average = %g, sd = %g\n", record[0], datum, average, sd)
 		if nr > nSamples {
-			// see if we break any of the rules, once we have an average to use
+			// see if we break any of the rules, but once we have an average to use
 			three := threeSigma(datum, average, sd)
 			switch three {
 			case " -3σ":
@@ -166,6 +170,8 @@ func twoSigma(datum, average, sd float64) string {
 	default:
 		threeSamples[0] = State_NA
 	}
+	//x := threeSamples
+	//log.Printf("threeSamples = %#v\n", x)
 	// see if we have two of three
 	if twoOf(threeSamples) {
 		threeSamples = shiftRight(threeSamples)

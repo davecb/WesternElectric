@@ -53,3 +53,12 @@ func New(nSamples int) func(s float64) (float64, float64) {
 		return Mean, math.Sqrt(S / float64(nSamples-1))
 	}
 }
+
+// Mock generates a  mock "add" function, that computes a
+// moving average and standard deviation of 0 and 1, respectively.
+// Used to validate the math in tests
+func Mock(nSamples int) func(s float64) (float64, float64) {
+	return func(new float64) (float64, float64) {
+		return 0.0, 1.0
+	}
+}
