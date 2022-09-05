@@ -102,7 +102,9 @@ func Test_twoSigma(t *testing.T) {
 	}
 }
 
-func Test_shifty(t *testing.T) {
+// TestShiftRight looks to see if shiftRight(1,2,3) = 0,1,2
+// where the leftmost value is zero-filled.
+func Test_shiftRight(t *testing.T) {
 	var stuff [3]State
 
 	stuff[0] = 0
@@ -113,3 +115,31 @@ func Test_shifty(t *testing.T) {
 		t.Errorf("shiftRight failed\n")
 	}
 }
+
+// Test WE with files of data
+func Test_westernElectric(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		nSamples int // number to average, not number samples in data
+		expect   int // a sigma indication
+	}{
+		{
+			name:     "example.csv",
+			file:     "./testdata/example.csv",
+			nSamples: 5,
+			expect:   0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := westernElectric(tt.file, tt.nSamples)
+			if rc != tt.expect {
+				t.Errorf("we found a failure\n")
+			}
+
+		})
+	}
+}
+
+func ExampleWesternElectric() {}

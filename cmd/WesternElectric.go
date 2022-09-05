@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 )
 
 /*
@@ -26,8 +27,6 @@ func usage() {
 
 func main() {
 	var nSamples int
-	var fp *os.File
-	var err error
 
 	flag.IntVar(&nSamples, "nSamples", 5, "number of samples in the moving average")
 	flag.Parse()
@@ -39,6 +38,17 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime) // show file:line in logs
 
 	filename := flag.Arg(0)
+
+	rc := westernElectric(filename, nSamples)
+	os.Exit(rc)
+}
+
+// westernElectric applies the WE rules to a stream of data, using a
+// moving average of nSamples as the thing to compare against.
+func westernElectric(filename string, nSamples int) int {
+	var fp *os.File
+	var err error
+
 	if filename == "-" {
 		// if the filename is "-", read stdin
 		fp = os.Stdin
@@ -55,13 +65,14 @@ func main() {
 			}
 		}()
 	}
-	worker(fp, nSamples)
+	rc := worker(fp, nSamples)
+	return rc
 }
 
 // worker reads the input and applies the rules, comparing the data
-// to a rolling average.
-func worker(fp *os.File, nSamples int) {
-	var nr int
+// to a moving average.
+func worker(fp *os.File, nSamples int) int {
+	var nr, lastErr int
 	var average float64
 	var sd float64
 
@@ -75,19 +86,21 @@ func worker(fp *os.File, nSamples int) {
 	// set up moving average
 	add := movingAverage.New(nSamples)
 
-	// read lines containing a datestamp and a (usually floating-point) value
-	fmt.Printf("%s\t%s\t%s\t%s %s\n", "#date", "datum", "average", "stddev", "flags")
+	// read lines containing a datestamp or other initial field, and a value
+	fmt.Printf("%s\t                    %s\t%s\t    %s     %s\n", "#date", "datum", "average", "stddev", "flags")
+	// 01-02T12:10:00-05:00
 	for nr = 0; ; nr++ {
 		record, err := r.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
+			// we had a csv-reading error, die.
 			log.Fatalf("error %q, in %q, line %d\n", err, record, nr)
 		}
 		if len(record) < 2 {
 			// skip it, but complain
-			log.Printf("error in line %d, %q. Ignored.\n", nr, record)
+			log.Printf("Too few fields in line %d, %q. Ignored.\n", nr, record)
 			continue
 		}
 
@@ -95,25 +108,41 @@ func worker(fp *os.File, nSamples int) {
 		// parse the value field
 		datum, err := strconv.ParseFloat(record[1], 64)
 		if err != nil {
-			log.Fatalf("Encountered invalid float64 in %q on line %d, halting.\n", record, nr)
+			// we had a float-parsing error
+			log.Printf("Invalid float64 in line %d, %q. Ignored.\n", nr, strings.Join(record, "\t"))
+			continue
 		}
 
 		//log.Printf("at time %q, got %g, average = %g, sd = %g\n", record[0], datum, average, sd)
 		if nr > nSamples {
-			// see if we break any of the rules once we have an average to use
+			// see if we break any of the rules, once we have an average to use
 			three := threeSigma(datum, average, sd)
-			two := ""
+			switch three {
+			case " -3σ":
+				lastErr = -3
+			case " 3σ":
+				lastErr = 3
+			}
+			two := twoSigma(datum, average, sd)
+			switch two {
+			case " -2σ":
+				lastErr = -2
+			case " 2σ":
+				lastErr = 2
+			}
 			one := ""
 
-			// 	print stats
-			fmt.Printf("%s\t%g\t%0.4g\t%0.4g%s\n", date, datum, average, sd,
-				three+two+one)
+			// 	print stats and a visual indicator of broken rules
+			fmt.Printf("%s\t%g\t%0.4g\t%0.4g%s\t%s\t%s\n", date, datum, average, sd,
+				three, two, one)
 		}
 		average, sd = add(datum)
 	}
+	return lastErr
 }
 
-// threeSigma does the classic single-sample test and returns a string
+// threeSigma does the classic single-sample at 3 sigma test and returns a string
+// to identify errors
 func threeSigma(datum, average, sd float64) string {
 	if math.Abs(datum) > average+(3*sd) {
 		if datum > 0 {
@@ -131,22 +160,22 @@ func twoSigma(datum, average, sd float64) string {
 	// record its state
 	switch {
 	case datum > average+(2*sd):
-		twosies[0] = State_Above
+		threeSamples[0] = State_Above
 	case datum < average-(2*sd):
-		twosies[0] = State_Below
+		threeSamples[0] = State_Below
 	default:
-		twosies[0] = State_NA
+		threeSamples[0] = State_NA
 	}
 	// see if we have two of three
-	if twoOf(twosies) {
-		twosies = shiftRight(twosies)
+	if twoOf(threeSamples) {
+		threeSamples = shiftRight(threeSamples)
 		if datum > 0 {
 			return " 2σ"
 		} else {
 			return " -2σ"
 		}
 	}
-	twosies = shiftRight(twosies)
+	threeSamples = shiftRight(threeSamples)
 	return ""
 }
 
@@ -157,12 +186,12 @@ func twoSigma(datum, average, sd float64) string {
 /*
  * infrastructure for the tests
  */
-var twosies, fivesies []State
+var threeSamples, fiveSamples []State
 
 func init() {
 	// state vectors for twp of three, four of five
-	twosies = make([]State, 3)
-	fivesies = make([]State, 5)
+	threeSamples = make([]State, 3)
+	fiveSamples = make([]State, 5)
 }
 
 // twoOf reports true if two states match
@@ -170,7 +199,7 @@ func twoOf(twosies []State) bool {
 	return nOf(twosies, 2)
 }
 
-// nOf reports true if N states match
+// nOf reports true if N states match, including the first
 func nOf(window []State, matches int) bool {
 	var found int
 	var target = window[0]
