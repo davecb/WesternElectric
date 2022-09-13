@@ -32,11 +32,13 @@ import (
 // function, conventionally called "add", that computes a moving average
 // and standard deviation as each sample is added to the sample set.
 func New(nSamples int) func(s float64) (float64, float64) {
-	var Mean, S float64 // S is the accumulator for the variance and SD
-	var i, k int
+	var i int
 
 	bins := make([]float64, nSamples)
 	return func(new float64) (float64, float64) {
+		var Mean, S float64 // S is the accumulator for the variance and SD
+		var k int
+
 		// First, place the new value into a bin
 		bins[i] = new
 		i = (i + 1) % nSamples
@@ -47,6 +49,7 @@ func New(nSamples int) func(s float64) (float64, float64) {
 			oldMean := Mean
 			Mean = Mean + (x-Mean)/float64(k+1)
 			S = S + (x-Mean)*(x-oldMean)
+			//log.Printf("x = %g, mean = %g , k+1 = %d\n", x, Mean, k+1)
 		}
 
 		// return the mean and SD

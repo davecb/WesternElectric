@@ -137,7 +137,7 @@ func worker(fp *os.File, nSamples int) int {
 			one := ""
 
 			// 	print stats and a visual indicator of broken rules
-			fmt.Printf("%s\t%g\t%0.4g\t%0.4g%s\t%s\t%s\n", date, datum, average, sd,
+			fmt.Printf("%s\t%f\t%0.4f\t%0.4f%s\t%s\t%s\n", date, datum, average, sd,
 				three, two, one)
 		}
 		average, sd = add(datum)
