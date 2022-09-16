@@ -1,6 +1,7 @@
-package main
+package WesternElectric
 
 import (
+	WesternElectric2 "github.com/davecb/WesternElectric/cmd/WesternElectric"
 	movingAverage "github.com/davecb/WesternElectric/pkg/MovingAverage"
 	"log"
 	"testing"
@@ -51,7 +52,7 @@ func Test_threeSigma(t *testing.T) {
 			t.Logf("n:  flag  data oldAv  oldSD  a+3sd\n")
 			add := movingAverage.New(tt.nSamples)
 			for i, datum = range tt.data {
-				got = threeSigma(datum, average, sd)
+				got = WesternElectric2.threeSigma(datum, average, sd)
 				average, sd = add(datum)
 				oldAv, oldSD = average, sd
 			}
@@ -121,7 +122,7 @@ func Test_twoSigma(t *testing.T) {
 			for i, datum = range tt.data {
 				if i > tt.nSamples {
 					// once we have an average, start looking
-					got = twoSigma(datum, average, sd)
+					got = WesternElectric2.twoSigma(datum, average, sd)
 					t.Logf("%-0.2d: %-5.5q %-4.2g %-4.2g %-4.2g %-4.2g\n", i, got, datum, oldAv, oldSD, oldAv+3*oldSD)
 					oldAv, oldSD = average, sd
 				}
@@ -139,12 +140,12 @@ func Test_twoSigma(t *testing.T) {
 // TestShiftRight looks to see if shiftRight(1,2,3) = 0,1,2
 // where the leftmost value is zero-filled.
 func Test_shiftRight(t *testing.T) {
-	var vector [3]State
+	var vector [3]WesternElectric2.State
 
 	vector[0] = 0
 	vector[1] = 1
 	vector[2] = 2
-	x := shiftRight(vector[:])
+	x := WesternElectric2.shiftRight(vector[:])
 	if x[0] != 0 || x[1] != 0 || x[2] != 1 {
 		t.Errorf("shiftRight failed\n")
 	}
