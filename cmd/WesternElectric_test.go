@@ -159,10 +159,10 @@ func Test_westernElectric(t *testing.T) {
 		expect   int // a sigma indication
 	}{
 		{
-			name:     "example.csv",
+			name:     "example.csv", // FIXME, breake up into sets
 			file:     "./testdata/example.csv",
 			nSamples: 5,
-			expect:   0,
+			expect:   2,
 		},
 	}
 	for _, tt := range tests {

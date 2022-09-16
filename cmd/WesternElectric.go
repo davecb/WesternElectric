@@ -20,16 +20,29 @@ import (
 
 func usage() {
 	//nolint
-	fmt.Fprint(os.Stderr, "Usage: westernelectric --samples N {file|-}\n")
+	fmt.Fprint(os.Stderr, "Usage: westernelectric --samples N {file|-}\n") //nolint
 	flag.PrintDefaults()
 	os.Exit(1)
 }
 
 func main() {
-	var nSamples int
+	var nSamples, mode int
+	var report, table bool
 
 	flag.IntVar(&nSamples, "nSamples", 5, "number of samples in the moving average")
+	flag.BoolVar(&report, "report", false, "report anomalies only")
+	flag.BoolVar(&table, "table", false, "report table of results & anomalies (default)")
 	flag.Parse()
+
+	switch {
+	case report && table:
+		log.Printf("Both table and report specified, choose only one. Halting\n")
+		usage()
+	case table:
+		mode = 0
+	case report:
+		mode = 1
+	}
 
 	if flag.NArg() < 1 {
 		fmt.Fprint(os.Stderr, "You must supply an input file, or '-' and a stream on stdin\n\n") //nolint
@@ -43,13 +56,13 @@ func main() {
 
 	filename := flag.Arg(0)
 
-	rc := WesternElectric(filename, nSamples)
+	rc := WesternElectric(filename, nSamples, mode)
 	os.Exit(rc)
 }
 
-// WesternElectric applies the WE rules to a stream of data, using a
+// WesternElectric applies the W.E. rules to a stream of data, using a
 // moving average of nSamples as the thing to compare against.
-func WesternElectric(filename string, nSamples int) int {
+func WesternElectric(filename string, nSamples, mode int) int {
 	var fp *os.File
 	var err error
 
@@ -69,20 +82,20 @@ func WesternElectric(filename string, nSamples int) int {
 			}
 		}()
 	}
-	rc := worker(fp, nSamples)
+	rc := worker(fp, nSamples, mode)
 	return rc
 }
 
 // worker reads the input and applies the rules, comparing the data
-// to a moving average.
-func worker(fp *os.File, nSamples int) int {
+// to a moving average. For testing convenience, it returns the last error.
+func worker(fp *os.File, nSamples, mode int) int { // FIXME return the string
 	var nr, lastErr int
 	var average float64
 	var sd float64
 
 	// set up csv reader to read fields out of a file
 	r := csv.NewReader(fp)
-	r.Comma = '\t'
+	r.Comma = ' '
 	r.Comment = '#'
 	r.FieldsPerRecord = -1 // ignore differences
 	r.LazyQuotes = true    // allow bad quoting
@@ -91,8 +104,7 @@ func worker(fp *os.File, nSamples int) int {
 	add := movingAverage.New(nSamples)
 
 	// read lines containing a datestamp or other initial field, and a value
-	fmt.Printf("%s\t                    %s\t%s\t    %s     %s\n", "#date", "datum", "average", "stddev", "flags")
-	// 01-02T12:10:00-05:00
+	header(mode)
 	for nr = 0; ; nr++ {
 		record, err := r.Read()
 		if err == io.EOF {
@@ -107,6 +119,7 @@ func worker(fp *os.File, nSamples int) int {
 			log.Printf("Too few fields in line %d, %q. Ignored.\n", nr, record)
 			continue
 		}
+		//log.Printf("read %q\n", record)
 
 		date := record[0]
 		// parse the value field
@@ -119,7 +132,7 @@ func worker(fp *os.File, nSamples int) int {
 
 		//log.Printf("at time %q, got %g, average = %g, sd = %g\n", record[0], datum, average, sd)
 		if nr > nSamples {
-			// see if we break any of the rules, but once we have an average to use
+			// see if we break any of the rules, but only once we have an average to use
 			three := threeSigma(datum, average, sd)
 			switch three {
 			case " -3σ":
@@ -136,13 +149,34 @@ func worker(fp *os.File, nSamples int) int {
 			}
 			one := ""
 
-			// 	print stats and a visual indicator of broken rules
-			fmt.Printf("%s\t%f\t%0.4f\t%0.4f%s\t%s\t%s\n", date, datum, average, sd,
-				three, two, one)
+			report(mode, date, datum, average, sd, three, two, one)
 		}
 		average, sd = add(datum)
 	}
 	return lastErr
+}
+
+func report(mode int, date string, datum float64, average float64, sd float64, three string, two string, one string) {
+	// 	print stats and a visual indicator of broken rules
+
+	switch mode {
+	case 0: // print a table
+		fmt.Printf("%s\t%f\t%0.4f\t%0.4f%s\t%s\t%s\n", date, datum, average, sd, three, two, one)
+
+	case 1:
+		// just a report
+		fmt.Printf("%s\t%f\t%0.4f\t%0.4f%s\t%s\t%s\n", date, datum, average, sd, three, two, one)
+	}
+}
+
+func header(mode int) {
+	switch mode {
+	case 0: // print a table
+		fmt.Printf("%s\t                    %s\t%s\t    %s     %s\n", "#date", "datum", "average", "stddev", "flags")
+	// 01-02T12:10:00-05:00
+	case 1: // just a report
+		fmt.Printf("%s\t                    %s\t%s\t    %s     %s\n", "#date", "datum", "average", "stddev", "flags")
+	}
 }
 
 // threeSigma does the classic single-sample at 3 sigma test and returns a string
@@ -164,15 +198,12 @@ func twoSigma(datum, average, sd float64) string {
 	// record its state
 	switch {
 	case datum > average+(2*sd):
-		threeSamples[0] = State_Above
+		threeSamples[0] = StateAbove
 	case datum < average-(2*sd):
-		threeSamples[0] = State_Below
+		threeSamples[0] = StateBelow
 	default:
-		threeSamples[0] = State_NA
+		threeSamples[0] = StateNA
 	}
-	//x := threeSamples
-	//log.Printf("threeSamples = %#v\n", x)
-	// see if we have two of three
 	if twoOf(threeSamples) {
 		threeSamples = shiftRight(threeSamples)
 		if datum > 0 {
@@ -210,7 +241,7 @@ func nOf(window []State, matches int) bool {
 	var found int
 	var target = window[0]
 
-	if target == State_NA {
+	if target == StateNA {
 		// we only care about above or belows matching
 		return false
 	}
@@ -231,35 +262,26 @@ func shiftRight(window []State) []State {
 	for i := len(window) - 1; i > 0; i-- {
 		window[i] = window[i-1]
 	}
-	window[0] = State_NA
+	window[0] = StateNA
 	return window
 }
 
-/*
- * State is the state of a previous sample
- * 		NA means it was neither above nor below the +/- cutoff
- * 		Above means it was above the cutoff, and so on
- */
+// State is the state of a previous sample. NA means it was neither
+// above nor below the +/- cutoff, //Above means it was above the cutoff, and so on
 type State int32
 
 const (
-	State_NA    State = 0
-	State_Above State = 1
-	State_Below State = 2
+	StateNA    State = 0
+	StateAbove State = 1
+	StateBelow State = 2
 )
 
-var State_name = map[int32]string{
+var StateName = map[int32]string{
 	0: "NA",
 	1: "Above",
 	2: "Below",
 }
 
-var State_value = map[string]int32{
-	"NA":    0,
-	"Above": 1,
-	"Below": 2,
-}
-
 func (x State) String() string {
-	return State_name[int32(x)]
+	return StateName[int32(x)]
 }
