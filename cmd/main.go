@@ -51,32 +51,6 @@ func main() {
 
 	filename := flag.Arg(0)
 
-	rc := WesternElectric(filename, nSamples, mode)
+	rc := we.ApplyRules(filename, nSamples, mode)
 	os.Exit(rc)
-}
-
-// WesternElectric applies the W.E. rules to a stream of data, using a
-// moving average of nSamples as the thing to compare against.
-func WesternElectric(filename string, nSamples, mode int) int {
-	var fp *os.File
-	var err error
-
-	if filename == "-" {
-		// if the filename is "-", read stdin
-		fp = os.Stdin
-	} else {
-		fp, err = os.Open(filename) //nolint
-		if err != nil {
-			log.Fatalf("error opening %s: %q, halting.", filename, err)
-		}
-		defer func() {
-			err := fp.Close()
-			if err != nil {
-				log.Printf("Close of input file %q failed, ignored. %v\n",
-					filename, err)
-			}
-		}()
-	}
-	rc := we.Worker(fp, nSamples, mode)
-	return rc
 }

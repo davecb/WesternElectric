@@ -60,12 +60,12 @@ func Worker(fp *os.File, nSamples, mode int) int {
 		//log.Printf("at time %q, got %g, average = %g, sd = %g\n", record[0], datum, average, sd)
 		if nr > nSamples {
 			// see if we break any of the rules, but only once we have an average to use
-			rcThree := threeSigma(datum, average, sd)
+			rcThree := ThreeSigma(datum, average, sd)
 			if rcThree != 0 {
 				lastErr = rcThree
 			}
 
-			rcTwo := twoSigma(datum, average, sd)
+			rcTwo := TwoSigma(datum, average, sd)
 			if rcTwo != 0 {
 				lastErr = rcTwo
 			}
@@ -124,9 +124,9 @@ func header(mode int) {
 	}
 }
 
-// threeSigma does the classic single-sample at 3 sigma test and returns a string
+// ThreeSigma does the classic single-sample at 3 sigma test and returns a string
 // to identify errors
-func threeSigma(datum, average, sd float64) int {
+func ThreeSigma(datum, average, sd float64) int {
 	if math.Abs(datum) > average+(3*sd) {
 		if datum > 0 {
 			return 3
@@ -137,8 +137,8 @@ func threeSigma(datum, average, sd float64) int {
 	return 0
 }
 
-// twoSigma detects 2 out of 3 points at +/- 2 sigma
-func twoSigma(datum, average, sd float64) int {
+// TwoSigma detects 2 out of 3 points at +/- 2 sigma
+func TwoSigma(datum, average, sd float64) int {
 
 	// record its state
 	switch {
