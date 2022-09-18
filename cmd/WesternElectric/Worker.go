@@ -15,7 +15,7 @@ import (
 
 // worker reads the input and applies the rules, comparing the data
 // to a moving average. For testing convenience, it returns the last anomaly.
-func Worker(fp *os.File, nSamples, mode int) int {
+func Worker(fp *os.File, nSamples, reporting int) int {
 	var nr, lastErr int
 	var average float64
 	var sd float64
@@ -31,7 +31,7 @@ func Worker(fp *os.File, nSamples, mode int) int {
 	add := movingAverage.New(nSamples)
 
 	// read lines containing a datestamp or other initial field, and a value
-	header(mode)
+	header(reporting)
 	for nr = 0; ; nr++ {
 		record, err := r.Read()
 		if err == io.EOF {
@@ -69,9 +69,13 @@ func Worker(fp *os.File, nSamples, mode int) int {
 			if rcTwo != 0 {
 				lastErr = rcTwo
 			}
-			rcOne := 0
 
-			report(mode, date, datum, average, sd, rcThree, rcTwo, rcOne)
+			rcOne := OneSigma(datum, average, sd)
+			if rcOne != 0 {
+				lastErr = rcOne
+			}
+
+			report(reporting, date, datum, average, sd, rcThree, rcTwo, rcOne)
 		}
 		average, sd = add(datum)
 	}
@@ -79,29 +83,38 @@ func Worker(fp *os.File, nSamples, mode int) int {
 }
 
 // report tells us what happened, in short or long form.
-func report(mode int, date string, datum float64, average float64, sd float64, rcThree, rcTwo, rcOne int) {
+func report(reportingMode int, date string, datum float64, average float64, sd float64, rcThree, rcTwo, rcOne int) {
 	// 	print stats and a visual indicator of broken rules
 	var three, two, one string
 
+	// hide zeroes
 	switch rcThree {
 	case -3:
-		three = " -3σ"
+		three = " -3" // -3 sigma
 	case 3:
-		three = " 3σ"
+		three = " 3"
 	default:
 		three = ""
 	}
 	switch rcTwo {
-	case -3:
-		two = " -2σ"
-	case 3:
-		two = " 2σ"
+	case -2:
+		two = " -2"
+	case 2:
+		two = " 2"
 	default:
 		two = ""
 	}
+	switch rcOne {
+	case -1:
+		one = " -1"
+	case 3:
+		one = " 1"
+	default:
+		one = ""
+	}
 
-	switch mode {
-	case 0: // print a table of date, datum and the +/- sigma lines, then the indicators
+	switch reportingMode {
+	case 0: // print a table of date, datum and the +/- sigma lines, then the indicators as digits
 		fmt.Printf("%s %0.4f %0.4f %0.4f %0.4f %0.4f %0.4f %0.4f %0.4f %s %s %s\n",
 			date, datum, average,
 			average+sd, average-sd,
@@ -115,17 +128,18 @@ func report(mode int, date string, datum float64, average float64, sd float64, r
 	}
 }
 
+// header prints a header for the columns
 func header(mode int) {
 	switch mode {
-	case 0: // print a table for plotting and/or spreadsheets
+	case 0: // print headers for a table, for plotting and/or spreadsheets
 		fmt.Printf("#date datum average average+sd average-sd average+2*sd average-2*sd average+3*sd average-3*sd flags\n")
-	case 1: // just a report, aligned for people to scan
+	case 1: // headers for just a report, aligned for people to scan
 		fmt.Printf("%s %s         %s     %s      %s\n", "#date", "datum", "average", "stddev", "flags")
 	}
 }
 
-// ThreeSigma does the classic single-sample at 3 sigma test and returns a string
-// to identify errors
+// ThreeSigma does the classic single-sample at 3 sigma test and returns an indicator
+// to identify anomalies, in this case, "spikes".
 func ThreeSigma(datum, average, sd float64) int {
 	if math.Abs(datum) > average+(3*sd) {
 		if datum > 0 {
@@ -137,7 +151,8 @@ func ThreeSigma(datum, average, sd float64) int {
 	return 0
 }
 
-// TwoSigma detects 2 out of 3 points at +/- 2 sigma
+// TwoSigma detects 2 out of 3 points at +/- 2 sigma, to detect
+// step-functions and "bands".
 func TwoSigma(datum, average, sd float64) int {
 
 	// record its state
@@ -149,6 +164,7 @@ func TwoSigma(datum, average, sd float64) int {
 	default:
 		threeSamples[0] = StateNA
 	}
+	// see if we have two out of three
 	if twoOf(threeSamples) {
 		threeSamples = shiftRight(threeSamples)
 		if datum > 0 {
@@ -157,13 +173,37 @@ func TwoSigma(datum, average, sd float64) int {
 			return -2
 		}
 	}
+	// get ready for the next test
 	threeSamples = shiftRight(threeSamples)
 	return 0
 }
 
-// oneSigma detects  4/5 at 1 +/- sigma
+// oneSigma detects  4/5 at 1 +/- sigma, again for
+// bands and step-functions.
+func OneSigma(datum, average, sd float64) int {
 
-// noSigma detects  9/9 on the same side of 0
+	// record its state
+	switch {
+	case datum > average+sd:
+		fiveSamples[0] = StateAbove
+	case datum < average-(2*sd):
+		fiveSamples[0] = StateBelow
+	default:
+		fiveSamples[0] = StateNA
+	}
+	if fourOf(fiveSamples) {
+		fiveSamples = shiftRight(fiveSamples)
+		if datum > 0 {
+			return 2
+		} else {
+			return -2
+		}
+	}
+	fiveSamples = shiftRight(fiveSamples)
+	return 0
+}
+
+// noSigma, if implemented, would detect  9/9 on the same side of 0
 
 /*
  * infrastructure for the tests
@@ -177,11 +217,17 @@ func init() {
 }
 
 // twoOf reports true if two states match
-func twoOf(twosies []State) bool {
-	return nOf(twosies, 2)
+func twoOf(threes []State) bool {
+	return nOf(threes, 2)
 }
 
-// nOf reports true if N states match, including the first
+// fourOf reports true if four states match
+func fourOf(fives []State) bool {
+	return nOf(fives, 2)
+}
+
+// nOf reports true if N states match the first, counting the
+// first as one.
 func nOf(window []State, matches int) bool {
 	var found int
 	var target = window[0]
@@ -212,7 +258,7 @@ func shiftRight(window []State) []State {
 }
 
 // State is the state of a previous sample. NA means it was neither
-// above nor below the +/- cutoff, //Above means it was above the cutoff, and so on
+// above nor below the +/- cutoff, above means it was above the cutoff, and so on.
 type State int32
 
 const (

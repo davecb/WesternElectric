@@ -145,7 +145,7 @@ func Test_westernElectric(t *testing.T) {
 		expect   int // a sigma indication
 	}{
 		{
-			name:     "example.csv", // FIXME, breake up into sets
+			name:     "example.csv", // FIXME, break up into sets
 			file:     "./testdata/example.csv",
 			nSamples: 5,
 			expect:   2,

@@ -7,7 +7,7 @@ import (
 
 // ApplyRules applies the Western Electric rules to a stream of data, using a
 // moving average of nSamples as the thing to compare against.
-func ApplyRules(filename string, nSamples, mode int) int {
+func ApplyRules(filename string, nSamples, reporting int) int {
 	var fp *os.File
 	var err error
 
@@ -27,6 +27,6 @@ func ApplyRules(filename string, nSamples, mode int) int {
 			}
 		}()
 	}
-	rc := Worker(fp, nSamples, mode)
+	rc := Worker(fp, nSamples, reporting)
 	return rc
 }

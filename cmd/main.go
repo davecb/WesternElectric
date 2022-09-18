@@ -21,7 +21,7 @@ func usage() {
 }
 
 func main() {
-	var nSamples, mode int
+	var nSamples, reportingMode int
 	var report, table bool
 
 	flag.IntVar(&nSamples, "nSamples", 5, "number of samples in the moving average")
@@ -34,9 +34,9 @@ func main() {
 		log.Printf("Both table and report specified, choose only one. Halting\n")
 		usage()
 	case table:
-		mode = 0
+		reportingMode = 0
 	case report:
-		mode = 1
+		reportingMode = 1
 	}
 
 	if flag.NArg() < 1 {
@@ -51,6 +51,6 @@ func main() {
 
 	filename := flag.Arg(0)
 
-	rc := we.ApplyRules(filename, nSamples, mode)
+	rc := we.ApplyRules(filename, nSamples, reportingMode)
 	os.Exit(rc)
 }
